@@ -182,6 +182,7 @@ public:
   // helper methods
   bool millisHasNowPassed(unsigned long timestamp) const;
   unsigned long futureMillis(int millis_from_now) const;
+  long millisUntil(unsigned long timestamp) const;
 
 private:
   void checkRecv();

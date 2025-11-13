@@ -330,4 +330,8 @@ unsigned long Dispatcher::futureMillis(int millis_from_now) const {
   return _ms->getMillis() + millis_from_now;
 }
 
+long Dispatcher::millisUntil(unsigned long timestamp) const {
+  return fmax(0, (long)(_ms->getMillis() - timestamp));
+}
+
 }

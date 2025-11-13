@@ -191,6 +191,11 @@ public:
     _fs->remove(PACKET_LOG_FILE);
   }
 
+  // Saves upcoming events to RTC RAM, returns millis to next event
+  uint32_t prepareForSleep();
+  // Recovers upcoming events from RTC RAM and recomputes offsets
+  void restoreFromSleep();
+
   void dumpLogFile() override;
   void setTxPower(uint8_t power_dbm) override;
   void formatNeighborsReply(char *reply) override;

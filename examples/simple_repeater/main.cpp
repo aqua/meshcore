@@ -20,8 +20,8 @@ void halt() {
 static char command[160];
 
 #ifdef POWERSAVING_MODE
-  // To keep when the board starts
-  uint32_t boardstart_timestamp = millis();
+  // Sleep time calculated relative to this
+  uint32_t last_activity = millis();
 #endif
 
 void setup() {
@@ -48,6 +48,18 @@ void setup() {
       display.endFrame();
     }
   #endif
+#endif
+
+#ifdef POWERSAVING_MODE
+  if (board.getStartupReason() == BD_STARTUP_RX_PACKET) {
+    MESH_DEBUG_PRINTLN("Waking from sleep");
+    the_mesh.restoreFromSleep();
+    last_activity = millis();
+  } else {
+    // On fresh start, don't sleep for at least 30s
+    last_activity = millis() + 30000;
+    MESH_DEBUG_PRINTLN("Cold booting, last_activity=%d", last_activity);
+  }
 #endif
 
   if (!radio_init()) {
@@ -109,9 +121,29 @@ void setup() {
 #endif
 }
 
+void enterSleep() {
+  uint32_t duration = the_mesh.prepareForSleep();
+  if (duration > 0) {
+    // sleep until the next RX packet or when an event was due
+    MESH_DEBUG_PRINTLN("Sleeping %d sec", (duration+500)/1000);
+    Serial.flush();
+    board.enterDeepSleep((duration+500) / 1000);
+  } else {
+    MESH_DEBUG_PRINTLN("Sleeping until woken by radio");
+    Serial.flush();
+    board.powerOff();
+  }
+}
+
 void loop() {
   int len = strlen(command);
   while (Serial.available() && len < sizeof(command)-1) {
+#ifdef POWERSAVING_MODE
+    // Delay sleep by 2m on serial input (the ESP32 disables its
+    // USB serial interface on deep sleep, annoying for humans
+    // configuring the radio.)
+    last_activity = millis() + 120 * 1000;
+#endif
     char c = Serial.read();
     if (c != '\n') {
       command[len++] = c;
@@ -150,13 +182,8 @@ void loop() {
   rtc_clock.tick();
 
 #ifdef POWERSAVING_MODE
-  // Normal reset / start. To work for 30 seconds to allow sending an advert and sleep to save power
-  if (board.getStartupReason() != BD_STARTUP_RX_PACKET) {
-    if (millis() - boardstart_timestamp > 30000) {
-      board.powerOff(); // To sleep and wake up when receiving a LoRa packet
-    }
-  } else if (millis() - boardstart_timestamp > 5000) { // To work for 5 seconds and sleep to save power
-    board.powerOff();                                  // To sleep and wake up when receiving a LoRa packet
+  if (last_activity + 5000 < millis()) {
+    enterSleep();
   }
 #endif
 }

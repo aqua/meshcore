@@ -9,6 +9,8 @@
 #include <sys/time.h>
 #include <Wire.h>
 
+static RTC_DATA_ATTR uint32_t rtc_data_v1, rtc_data_v2, rtc_data_v3, rtc_data_v4;
+
 class ESP32Board : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
@@ -43,6 +45,21 @@ public:
   }
 
   uint8_t getStartupReason() const override { return startup_reason; }
+
+  // Saved in RTC SRAM; survives deep sleep but not resets
+  void saveRTCValues(uint32_t *v1, uint32_t *v2, uint32_t *v3, uint32_t *v4) {
+    if (v1 != nullptr) rtc_data_v1 = *v1;
+    if (v2 != nullptr) rtc_data_v2 = *v2;
+    if (v3 != nullptr) rtc_data_v3 = *v3;
+    if (v4 != nullptr) rtc_data_v4 = *v4;
+  }
+
+  void restoreRTCValues(uint32_t *v1, uint32_t *v2, uint32_t *v3, uint32_t *v4) {
+    if (v1 != nullptr) *v1 = rtc_data_v1;
+    if (v2 != nullptr) *v2 = rtc_data_v2;
+    if (v3 != nullptr) *v3 = rtc_data_v3;
+    if (v4 != nullptr) *v4 = rtc_data_v4;
+  }
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {

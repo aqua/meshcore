@@ -773,6 +773,8 @@ void MyMesh::updateAdvertTimer() {
   } else {
     next_local_advert = 0; // stop the timer
   }
+  MESH_DEBUG_PRINTLN("updateAdvertTimer: interval=%d, next=%ld",
+      _prefs.advert_interval, next_local_advert);
 }
 
 void MyMesh::updateFloodAdvertTimer() {
@@ -781,6 +783,35 @@ void MyMesh::updateFloodAdvertTimer() {
   } else {
     next_flood_advert = 0; // stop the timer
   }
+}
+
+uint32_t MyMesh::prepareForSleep() {
+  uint32_t now = getRTCClock()->getCurrentTime();
+  // convert flood timings to be relative to the pre-sleep clock
+  uint32_t next_local = (uint32_t)millisUntil(next_local_advert);
+  uint32_t next_flood = (uint32_t)millisUntil(next_flood_advert);
+  MESH_DEBUG_PRINTLN("Preparing for sleep, saving in RTC: now=%d, next_local=%d, next_flood=%d",
+      now, next_local, next_flood);
+  board.saveRTCValues(&now, &next_local, &next_flood, NULL);
+  if (next_local == 0) return next_flood;
+  if (next_flood == 0) return next_local;
+  return min(next_local, next_flood);
+}
+
+void MyMesh::restoreFromSleep() {
+  uint32_t now = getRTCClock()->getCurrentTime();
+  uint32_t sleep_time, next_local, next_flood;
+  board.restoreRTCValues(&sleep_time, &next_local, &next_flood, NULL);
+  if (sleep_time == 0) {  // RTC was cleared, nothing to restore
+    return;
+  } else if (sleep_time > now) {  // RTC has changed, times are undefined
+    return;
+  }
+  unsigned long time_asleep = 1000 * (now - sleep_time);
+  next_local_advert = futureMillis(next_local - time_asleep);
+  next_flood_advert = futureMillis(next_flood - time_asleep);
+  MESH_DEBUG_PRINTLN("Restored from sleep at %d; we slept %ds, next local %ld, next flood %ld",
+      now, time_asleep, next_local_advert, next_flood_advert);
 }
 
 void MyMesh::dumpLogFile() {
